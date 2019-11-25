@@ -522,7 +522,7 @@ class Chipset:
             self.longname = 'UnknownPlatform'
             value = self.get_cpuid()
             for item in Chipset_Dictionary[self.did]:
-                if value == item['detection_value']:
+                if 'detection_value' in item.keys() and value == item['detection_value']:
                     #matched setup info
                     _unknown_platform = False
                     data_dict       = item
@@ -543,17 +543,30 @@ class Chipset:
             self.pch_vid = VID_INTEL
             if req_pch_code in pch_codes:
                 self.pch_did = pch_codes[req_pch_code]
-                self.pch_rid = 0x00
+                self.pch_rid = 0x00 
             else:
                 self.pch_vid = 0xFFFF
                 self.pch_did = 0xFFFF
                 self.pch_rid = 0xFF
 
-        if self.pch_vid == VID_INTEL and self.pch_did in pch_dictionary:
-            data_dict           = pch_dictionary[self.pch_did][0]
-            self.pch_code       = data_dict['code'].lower()
-            self.pch_longname   = data_dict['longname']
-            self.pch_id         = data_dict['id']
+        if self.pch_vid == VID_INTEL and self.pch_did in pch_dictionary: 
+            # If DID has nore than one entry, compare RID. 
+            data_dict = None
+            if len(pch_dictionary[self.pch_did]) == 1:
+                data_dict = pch_dictionary[self.pch_did][0]
+            else:
+                for item in pch_dictionary[self.pch_did]:
+                    if 'rid' in item.keys() and item['rid'] == self.pch_rid:
+                        data_dict = item
+                        break
+            if data_dict is None:
+                _unknown_pch = True
+                msg = 'Multiple PCH DIDs found, unable to determine exact PCH configuration: VID = 0x{:04X}, DID = 0x{:04X}, RID = 0x{:02X}'.format(self.pch_vid,self.pch_did,self.pch_rid)
+                logger().warn(msg)
+            else:
+                self.pch_code       = data_dict['code'].lower()
+                self.pch_longname   = data_dict['longname']
+                self.pch_id         = data_dict['id']
         else:
             _unknown_pch = True
             self.pch_longname = 'Default PCH'

@@ -86,6 +86,7 @@ jobs:
     - name: Install Debian dependencies
       if: matrix.distro.name == 'debian'
       run: |
+        apt-key update
         apt-get update -q
         apt-get install -qqy dkms nasm
 

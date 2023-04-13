@@ -73,6 +73,9 @@ class TestHelper(Helper):
 
     def cpuid(self, eax, ecx):
         return 0x406F1, 0, 0, 0
+    
+    def split_address(self, pa: int): # Returns pa_lo, pa_hi
+        return (pa & 0xFFFFFFFF, (pa >> 32) & 0xFFFFFFFF)
 
     def write_pci_reg(self, bus, device, function, address, value, size):
         raise UnimplementedAPIError('write_pci_reg')
@@ -328,7 +331,7 @@ class DSDTParsingHelper(ACPIHelper):
         self.fadt_descriptor = self._create_fadt()
 
     def read_phys_mem(self, pa, length):
-        pa_lo = pa & 0xFFFFFFFF
+        pa_lo, _ = self.split_address(pa)
         if pa_lo == self.FADT_ADDRESS:
             return self.fadt_descriptor[:length]
         else:

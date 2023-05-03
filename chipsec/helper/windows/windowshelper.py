@@ -462,25 +462,15 @@ class WindowsHelper(Helper):
             logger().log_debug(f"[helper] Opened device '{DEVICE_FILE:.64}' (handle: {int(self.driver_handle):08X})")
         return self.driver_handle
 
-    def check_driver_handle(self) -> bool:
+    def _check_driver_handle(self) -> bool:
         if (0x6 == kernel32.GetLastError()):
             win32api.CloseHandle(self.driver_handle)
             self.driver_handle = None
-            self.get_driver_handle()
+            self._get_driver_handle()
             logger().log_warning(f"Invalid handle: re-opened device '{self.device_file:.64}' (new handle: {int(self.driver_handle):08X})")
             return False
         return True
 
-    #
-    # Auxiliary functions
-    #
-    def get_threads_count(self) -> int:
-        sum = 0
-        proc_group_count = (kernel32.GetActiveProcessorGroupCount() & 0xFFFF)
-        for grp in range(proc_group_count):
-            procs = kernel32.GetActiveProcessorCount(grp)
-            sum = sum + procs
-        return sum
 
     #
     # Generic IOCTL call function
@@ -491,7 +481,7 @@ class WindowsHelper(Helper):
             _handle_error("chipsec kernel driver is not loaded (in native API mode?)")
 
         out_buf = (c_char * out_length)()
-        self.get_driver_handle()
+        self._get_driver_handle()
         try:
             out_buf = win32file.DeviceIoControl(self.driver_handle, ioctl_code, in_buf, out_length, None)
         except pywintypes.error as _err:
@@ -510,22 +500,41 @@ class WindowsHelper(Helper):
 # Actual driver IOCTL functions to access HW resources
 ###############################################################################################
 
-    def read_phys_mem(self, phys_address: int, length: int) -> bytes:
-        out_length = length
-        hi = (phys_address >> 32) & 0xFFFFFFFF
-        lo = phys_address & 0xFFFFFFFF
-        in_buf = struct.pack('3I', hi, lo, length)
-        out_buf = self._ioctl(IOCTL_READ_PHYSMEM, in_buf, out_length)
-        return bytes(out_buf)
+    def read_pci_reg(self, bus: int, device: int, function: int, address: int, size: int) -> int:
+        bdf = PCI_BDF(bus & 0xFFFF, device & 0xFFFF, function & 0xFFFF, address & 0xFFFF)
+        out_length = size
+        in_buf = struct.pack('4HB', bdf.BUS, bdf.DEV, bdf.FUNC, bdf.OFF, size)
+        out_buf = self._ioctl(READ_PCI_CFG_REGISTER, in_buf, out_length)
+        if 1 == size:
+            value = struct.unpack('B', out_buf)[0]
+        elif 2 == size:
+            value = struct.unpack('H', out_buf)[0]
+        else:
+            value = struct.unpack('I', out_buf)[0]
+        return value
 
-    def write_phys_mem(self, phys_address: int, length: int, buf: AnyStr):
-        hi = (phys_address >> 32) & 0xFFFFFFFF
-        lo = phys_address & 0xFFFFFFFF
-        in_buf = struct.pack('3I', hi, lo, length) + stringtobytes(buf)
-        out_buf = self._ioctl(IOCTL_WRITE_PHYSMEM, in_buf, 4)
-        return out_buf
+    def write_pci_reg(self, bus: int, device: int, function: int, address: int, value: int, size: int) -> int:
+        bdf = PCI_BDF(bus & 0xFFFF, device & 0xFFFF, function & 0xFFFF, address & 0xFFFF)
+        out_length = 0
+        in_buf = struct.pack('4HIB', bdf.BUS, bdf.DEV, bdf.FUNC, bdf.OFF, value, size)
+        out_buf = self._ioctl(WRITE_PCI_CFG_REGISTER, in_buf, out_length)
+        return True
 
-    # @TODO: Temporarily the same as read_phys_mem for compatibility
+    def _get_handle_for_pid(self, pid: int = 0, ro: bool = True) -> int:
+        if pid == 0:
+            pHandle = win32process.GetCurrentProcess()
+        else:
+            flags = win32con.PROCESS_QUERY_INFORMATION
+            if not ro:
+                flags |= wn32con.PROCESS_SET_INFORMATION
+            try:
+                pHandle = win32api.OpenProcess(flags, 0, pid)
+            except pywintypes.error as e:
+                print("unable to open a process handle")
+                raise ValueError(e)
+        return pHandle
+
+
     def read_mmio_reg(self, phys_address: int, size: int) -> int:
         out_size = size
         logger().log_debug(f'[helper] -> read_mmio_reg( phys_address=0x{phys_address:X}, size={size} )')
@@ -558,13 +567,31 @@ class WindowsHelper(Helper):
         out_buf = self._ioctl(IOCTL_WRITE_MMIO, in_buf, 4)
         return out_buf
 
+
+    def read_phys_mem(self, phys_address: int, length: int) -> bytes:
+        out_length = length
+        in_buf = struct.pack('QI', phys_address, length)
+        out_buf = self._ioctl(IOCTL_READ_PHYSMEM, in_buf, out_length)
+        return bytes(out_buf)
+
+    def write_phys_mem(self, phys_address: int, length: int, buf: AnyStr):
+        in_length = length + 12
+        in_buf = struct.pack('QI', phys_address, length) + stringtobytes(buf)
+        out_buf = self._ioctl(IOCTL_WRITE_PHYSMEM, in_buf, 4)
+        return out_buf
+
     def alloc_phys_mem(self, length: int, max_pa: int) -> Tuple[int, int]:
-        in_length = 12
         out_length = 16
         in_buf = struct.pack('QI', max_pa, length)
         out_buf = self._ioctl(IOCTL_ALLOC_PHYSMEM, in_buf, out_length)
         (va, pa) = struct.unpack('2Q', out_buf)
         return (va, pa)
+
+    def free_phys_mem(self, physical_address):
+        out_length = 8
+        in_buf = struct.pack('<Q', physical_address)
+        out_buf = self._ioctl(IOCTL_FREE_PHYSMEM, in_buf, out_length)
+        return
 
     def va2pa(self, va: int) -> Tuple[int, int]:
         error_code = 0
@@ -575,23 +602,6 @@ class WindowsHelper(Helper):
         pa = struct.unpack('Q', out_buf)[0]
         return (pa, error_code)
 
-    #
-    # HYPERCALL
-    #
-    def hypercall(self, rcx, rdx, r8, r9, r10, r11, rax, rbx, rdi, rsi, xmm_buffer):
-        if self.os_machine == 'AMD64':
-            arg_type = 'Q'
-            out_length = 8
-        else:
-            arg_type = 'I'
-            out_length = 4
-        in_buf = struct.pack(f'<11{arg_type}', rcx, rdx, r8, r9, r10, r11, rax, rbx, rdi, rsi, xmm_buffer)
-        out_buf = self._ioctl(IOCTL_HYPERCALL, in_buf, out_length)
-        return struct.unpack(f'<{arg_type}', out_buf)[0]
-
-    #
-    # MAP_IO_SPACE
-    #
     def map_io_space(self, physical_address, length, cache_type):
         out_length = 8
         in_buf = struct.pack('<3Q', physical_address, length, cache_type)
@@ -599,56 +609,6 @@ class WindowsHelper(Helper):
         virtual_address = struct.unpack('<Q', out_buf)[0]
         return virtual_address
 
-    #
-    # FREE_PHYS_MEM
-    #
-    def free_phys_mem(self, physical_address):
-        out_length = 8
-        in_buf = struct.pack('<Q', physical_address)
-        out_buf = self._ioctl(IOCTL_FREE_PHYSMEM, in_buf, out_length)
-        return
-
-    def read_msr(self, cpu_thread_id: int, msr_addr: int) -> Tuple[int, int]:
-        out_length = 8
-        in_buf = struct.pack('=2I', cpu_thread_id, msr_addr)
-        out_buf = self._ioctl(IOCTL_RDMSR, in_buf, out_length)
-        (eax, edx) = struct.unpack('2I', out_buf)
-        return (eax, edx)
-
-    def write_msr(self, cpu_thread_id: int, msr_addr: int, eax: int, edx: int) -> int:
-        out_length = 0
-        out_buf = (c_char * out_length)()
-        in_buf = struct.pack('=4I', cpu_thread_id, msr_addr, eax, edx)
-        out_buf = self._ioctl(IOCTL_WRMSR, in_buf, out_length)
-        return True
-
-    def read_pci_reg(self, bus: int, device: int, function: int, address: int, size: int) -> int:
-        bdf = PCI_BDF(bus & 0xFFFF, device & 0xFFFF, function & 0xFFFF, address & 0xFFFF)
-        out_length = size
-        in_buf = struct.pack('4HB', bdf.BUS, bdf.DEV, bdf.FUNC, bdf.OFF, size)
-        out_buf = self._ioctl(READ_PCI_CFG_REGISTER, in_buf, out_length)
-        if 1 == size:
-            value = struct.unpack('B', out_buf)[0]
-        elif 2 == size:
-            value = struct.unpack('H', out_buf)[0]
-        else:
-            value = struct.unpack('I', out_buf)[0]
-        return value
-
-    def write_pci_reg(self, bus: int, device: int, function: int, address: int, value: int, size: int) -> int:
-        bdf = PCI_BDF(bus & 0xFFFF, device & 0xFFFF, function & 0xFFFF, address & 0xFFFF)
-        out_length = 0
-        in_buf = struct.pack('4HIB', bdf.BUS, bdf.DEV, bdf.FUNC, bdf.OFF, value, size)
-        out_buf = self._ioctl(WRITE_PCI_CFG_REGISTER, in_buf, out_length)
-        return True
-
-    def load_ucode_update(self, cpu_thread_id: int, ucode_update_buf: bytes) -> bool:
-        in_length = len(ucode_update_buf) + 3
-        out_length = 0
-        out_buf = (c_char * out_length)()
-        in_buf = struct.pack('=IH', cpu_thread_id, len(ucode_update_buf)) + ucode_update_buf
-        out_buf = self._ioctl(IOCTL_LOAD_UCODE_PATCH, in_buf, out_length)
-        return True
 
     def read_io_port(self, io_port: int, size: int) -> int:
         value = 0
@@ -667,6 +627,7 @@ class WindowsHelper(Helper):
         out_buf = self._ioctl(IOCTL_WRITE_IO_PORT, in_buf, 0)
         return True
 
+
     def read_cr(self, cpu_thread_id: int, cr_number: int) -> int:
         value = 0
         in_buf = struct.pack('=HI', cr_number, cpu_thread_id)
@@ -679,18 +640,38 @@ class WindowsHelper(Helper):
         out_buf = self._ioctl(IOCTL_WRCR, in_buf, 0)
         return True
 
-    #
-    # IDTR/GDTR/LDTR
-    #
+
+    def read_msr(self, cpu_thread_id: int, msr_addr: int) -> Tuple[int, int]:
+        out_length = 8
+        in_buf = struct.pack('=2I', cpu_thread_id, msr_addr)
+        out_buf = self._ioctl(IOCTL_RDMSR, in_buf, out_length)
+        (eax, edx) = struct.unpack('2I', out_buf)
+        return (eax, edx)
+
+    def write_msr(self, cpu_thread_id: int, msr_addr: int, eax: int, edx: int) -> int:
+        out_length = 0
+        out_buf = (c_char * out_length)()
+        in_buf = struct.pack('=4I', cpu_thread_id, msr_addr, eax, edx)
+        out_buf = self._ioctl(IOCTL_WRMSR, in_buf, out_length)
+        return True
+
+
+    def load_ucode_update(self, cpu_thread_id: int, ucode_update_buf: bytes) -> bool:
+        in_length = len(ucode_update_buf) + 3
+        out_length = 0
+        out_buf = (c_char * out_length)()
+        in_buf = struct.pack('=IH', cpu_thread_id, len(ucode_update_buf)) + ucode_update_buf
+        out_buf = self._ioctl(IOCTL_LOAD_UCODE_PATCH, in_buf, out_length)
+        return True
+
+
     def get_descriptor_table(self, cpu_thread_id: int, desc_table_code: int) -> Tuple[int, int, int]:
         in_buf = struct.pack('IB', cpu_thread_id, desc_table_code)
         out_buf = self._ioctl(IOCTL_GET_CPU_DESCRIPTOR_TABLE, in_buf, 18)
         (limit, base, pa) = struct.unpack('=HQQ', out_buf)
         return (limit, base, pa)
 
-    #
-    # EFI Variable API
-    #
+
     def EFI_supported(self) -> bool:
         # kern32.GetFirmwareEnvironmentVariable with garbage parameters will cause GetLastError() == 1 reliably on a legacy system
         if self.GetFirmwareEnvironmentVariable is not None:
@@ -702,7 +683,7 @@ class WindowsHelper(Helper):
         else:
             return False
 
-    def get_EFI_variable_full(self, name: str, guid: str, attrs: Optional[int] = None) -> Tuple[int, Optional[bytes], int]:
+    def _get_EFI_variable_full(self, name: str, guid: str, attrs: Optional[int] = None) -> Tuple[int, Optional[bytes], int]:
         status = 0  # EFI_SUCCESS
         length = 0
         efi_var = create_string_buffer(EFI_VAR_MAX_BUFFER_SIZE)
@@ -727,7 +708,7 @@ class WindowsHelper(Helper):
         return (status, efi_var_data, attrs)
 
     def get_EFI_variable(self, name: str, guid: str, attrs: Optional[int] = None) -> Optional[bytes]:
-        (status, data, attributes) = self.get_EFI_variable_full(name, guid, attrs)
+        (status, data, attributes) = self._get_EFI_variable_full(name, guid, attrs)
         return data
 
     def set_EFI_variable(self, name: str, guid: str, data: bytes, datasize: Optional[int], attrs: Optional[int]) -> int:
@@ -786,63 +767,6 @@ class WindowsHelper(Helper):
         logger().log_debug(f'[helper] len(efi_vars) = 0x{len(efi_vars):X} (should be 0x20000)')
         return getEFIvariables_NtEnumerateSystemEnvironmentValuesEx2(bytes(efi_vars))
 
-    #
-    # Interrupts
-    #
-    def send_sw_smi(self, cpu_thread_id: int, SMI_code_data: int, _rax: int, _rbx: int, _rcx: int, _rdx: int, _rsi: int, _rdi: int) -> Optional[Tuple[int, int, int, int, int, int, int]]:
-        if (sys.maxsize < 2**32 and self.os_machine == 'AMD64') or (sys.maxsize > 2**32 and self.os_machine == 'i386'):
-            logger().log(f"[helper] Python architecture must match OS architecture.  Run with {self.os_machine} architecture of python")
-        out_length = struct.calcsize(_smi_msg_t_fmt)
-        out_size = c_ulong(out_length)
-        in_buf = struct.pack(_smi_msg_t_fmt, SMI_code_data, _rax, _rbx, _rcx, _rdx, _rsi, _rdi)
-        out_buf = self._ioctl(IOCTL_SWSMI, in_buf, out_length)
-        if out_buf:
-            ret = struct.unpack(_smi_msg_t_fmt, out_buf)
-        else:
-            ret = None
-        return ret
-
-    def _get_handle_for_pid(self, pid: int = 0, ro: bool = True) -> int:
-        if pid == 0:
-            pHandle = win32process.GetCurrentProcess()
-        else:
-            flags = win32con.PROCESS_QUERY_INFORMATION
-            if not ro:
-                flags |= wn32con.PROCESS_SET_INFORMATION
-            try:
-                pHandle = win32api.OpenProcess(flags, 0, pid)
-            except pywintypes.error as e:
-                print("unable to open a process handle")
-                raise ValueError(e)
-        return pHandle
-
-    def set_affinity(self, value: int) -> Optional[int]:
-        pHandle = self._get_handle_for_pid(0, False)
-        current = win32process.GetProcessAffinityMask(pHandle)[0]
-        try:
-            win32process.SetProcessAffinityMask(pHandle, current)
-        except win32process.error as e:
-            print("unable to set process affinity")
-            raise ValueError(e)
-        return current
-
-    def get_affinity(self) -> Optional[int]:
-        pHandle = self._get_handle_for_pid()
-        try:
-            return win32process.GetProcessAffinityMask(pHandle)[0]
-        except win32process.error as e:
-            print("unable to get the running cpu")
-            raise ValueError(e)
-
-    #
-    # CPUID
-    #
-    def cpuid(self, eax: int, ecx: int) -> Tuple[int, int, int, int]:
-        out_length = 16
-        in_buf = struct.pack('=2I', eax, ecx)
-        out_buf = self._ioctl(IOCTL_CPUID, in_buf, out_length)
-        (eax, ebx, ecx, edx) = struct.unpack('4I', out_buf)
-        return (eax, ebx, ecx, edx)
 
     def get_ACPI_SDT(self) -> Tuple[Optional[Array], bool]:
         sdt = self.native_get_ACPI_table('XSDT')  # FirmwareTableID_XSDT
@@ -870,9 +794,14 @@ class WindowsHelper(Helper):
     def get_ACPI_table(self, table_name):
         raise UnimplementedAPIError("get_ACPI_table")
 
-    #
-    # IOSF Message Bus access
-    #
+
+    def cpuid(self, eax: int, ecx: int) -> Tuple[int, int, int, int]:
+        out_length = 16
+        in_buf = struct.pack('=2I', eax, ecx)
+        out_buf = self._ioctl(IOCTL_CPUID, in_buf, out_length)
+        (eax, ebx, ecx, edx) = struct.unpack('4I', out_buf)
+        return (eax, ebx, ecx, edx)
+
 
     def msgbus_send_read_message(self, mcr, mcrx):
         raise UnimplementedAPIError("msgbus_send_read_message")
@@ -883,9 +812,65 @@ class WindowsHelper(Helper):
     def msgbus_send_message(self, mcr, mcrx, mdr):
         raise UnimplementedAPIError("msgbus_send_message")
 
-    #
-    # Speculation control
-    #
+
+    def get_affinity(self) -> Optional[int]:
+        pHandle = self._get_handle_for_pid()
+        try:
+            return win32process.GetProcessAffinityMask(pHandle)[0]
+        except win32process.error as e:
+            print("unable to get the running cpu")
+            raise ValueError(e)
+
+    def set_affinity(self, value: int) -> Optional[int]:
+        pHandle = self._get_handle_for_pid(0, False)
+        current = win32process.GetProcessAffinityMask(pHandle)[0]
+        try:
+            win32process.SetProcessAffinityMask(pHandle, current)
+        except win32process.error as e:
+            print("unable to set process affinity")
+            raise ValueError(e)
+        return current
+
+
+    def get_threads_count(self) -> int:
+        sum = 0
+        proc_group_count = (kernel32.GetActiveProcessorGroupCount() & 0xFFFF)
+        for grp in range(proc_group_count):
+            procs = kernel32.GetActiveProcessorCount(grp)
+            sum = sum + procs
+        return sum
+
+
+    def send_sw_smi(self, cpu_thread_id: int, SMI_code_data: int, _rax: int, _rbx: int, _rcx: int, _rdx: int, _rsi: int, _rdi: int) -> Optional[Tuple[int, int, int, int, int, int, int]]:
+        if (sys.maxsize < 2**32 and self.os_machine == 'AMD64') or (sys.maxsize > 2**32 and self.os_machine == 'i386'):
+            logger().log(f"[helper] Python architecture must match OS architecture.  Run with {self.os_machine} architecture of python")
+        out_length = struct.calcsize(_smi_msg_t_fmt)
+        out_size = c_ulong(out_length)
+        in_buf = struct.pack(_smi_msg_t_fmt, SMI_code_data, _rax, _rbx, _rcx, _rdx, _rsi, _rdi)
+        out_buf = self._ioctl(IOCTL_SWSMI, in_buf, out_length)
+        if out_buf:
+            ret = struct.unpack(_smi_msg_t_fmt, out_buf)
+        else:
+            ret = None
+        return ret
+
+
+    def hypercall(self, rcx, rdx, r8, r9, r10, r11, rax, rbx, rdi, rsi, xmm_buffer):
+        if self.os_machine == 'AMD64':
+            arg_type = 'Q'
+            out_length = 8
+        else:
+            arg_type = 'I'
+            out_length = 4
+        in_buf = struct.pack(f'<11{arg_type}', rcx, rdx, r8, r9, r10, r11, rax, rbx, rdi, rsi, xmm_buffer)
+        out_buf = self._ioctl(IOCTL_HYPERCALL, in_buf, out_length)
+        return struct.unpack(f'<{arg_type}', out_buf)[0]
+
+
+    def getcwd(self) -> str:
+        return (f'\\\\?\\{os.getcwd()}')
+
+
     def retpoline_enabled(self) -> bool:
         # See https://docs.microsoft.com/en-us/windows/win32/api/winternl/nf-winternl-ntquerysysteminformation
         speculation_control = c_uint32(0)
@@ -894,9 +879,6 @@ class WindowsHelper(Helper):
         self.NtQuerySystemInformation(SystemSpeculationControlInformation, addressof(speculation_control), sizeof(speculation_control), None)
         return bool(speculation_control.value & SpecCtrlRetpolineEnabled)
 
-#
-# Get instance of this OS helper
-#
 
 
 def get_helper() -> WindowsHelper:

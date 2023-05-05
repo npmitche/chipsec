@@ -195,8 +195,13 @@ class ChipsecUtil:
                 print_banner_properties(self._cs, os_version())
         else:
             if comm.requires_driver():
-                self.logger.log("Cannot run without driver loaded", level.ERROR)
-                sys.exit(ExitCode.OK)
+                try:
+                    self._cs.init(None, False, True)
+                except UnknownChipsetError as msg:
+                    self.logger.log_error("Trying to run without a config. Config based commands may error or return false data.")
+                
+                # self.logger.log("Cannot run without driver loaded", level.ERROR)
+                # sys.exit(ExitCode.OK)
 
         self.logger.log("[CHIPSEC] Executing command '{}' with args {}\n".format(self._cmd, self.argv[2:]))
         comm.run()

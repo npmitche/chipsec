@@ -336,13 +336,7 @@ class WindowsHelper(Helper):
         logger().log_warning("*******************************************************************")
         logger().log("")
 
-    #
-    # Create (register/install) chipsec service
-    #
-    def create(self, start_driver: bool) -> bool:
-        if not start_driver:
-            return True
-
+    def create(self) -> bool:
         # check DRIVER_FILE_PATHS for the DRIVER_FILE_NAME
         self.driver_path = None
         for path in DRIVER_FILE_PATHS:
@@ -392,34 +386,7 @@ class WindowsHelper(Helper):
 
         return True
 
-    #
-    # Remove (delete/unregister/uninstall) chipsec service
-    #
-    def delete(self, start_driver: bool) -> bool:
-        if not start_driver:
-            return True
-        if self.use_existing_service:
-            return True
-
-        if win32serviceutil.QueryServiceStatus(SERVICE_NAME)[1] != win32service.SERVICE_STOPPED:
-            logger().log_warning(f"Cannot delete service '{SERVICE_NAME}' (not stopped)")
-            return False
-
-        logger().log_debug("[helper] Deleting service '{SERVICE_NAME}'...")
-        try:
-            win32serviceutil.RemoveService(SERVICE_NAME)
-            logger().log_debug("[helper] Service '{SERVICE_NAME}' deleted")
-        except win32service.error as err:
-            if logger().DEBUG:
-                logger().log_warning("RemoveService failed: {err.args[2]} ({err.args[0]:d})")
-            return False
-
-        return True
-
-    #
-    # Start chipsec service
-    #
-    def start(self, start_driver: bool, driver_exists: bool = False) -> bool:
+    def start(self) -> bool:
 
         self.use_existing_service = (win32serviceutil.QueryServiceStatus(SERVICE_NAME)[1] == win32service.SERVICE_RUNNING)
 
@@ -438,12 +405,7 @@ class WindowsHelper(Helper):
         self.driverpath = win32serviceutil.LocateSpecificServiceExe(SERVICE_NAME)
         return True
 
-    #
-    # Stop chipsec service
-    #
-    def stop(self, start_driver: bool) -> bool:
-        if not start_driver:
-            return True
+    def stop(self) -> bool:
         if self.use_existing_service:
             return True
 
@@ -469,7 +431,26 @@ class WindowsHelper(Helper):
 
         return True
 
-    def get_driver_handle(self) -> 'PyHANDLE':
+    def delete(self) -> bool:
+        if self.use_existing_service:
+            return True
+
+        if win32serviceutil.QueryServiceStatus(SERVICE_NAME)[1] != win32service.SERVICE_STOPPED:
+            logger().log_warning(f"Cannot delete service '{SERVICE_NAME}' (not stopped)")
+            return False
+
+        logger().log_debug("[helper] Deleting service '{SERVICE_NAME}'...")
+        try:
+            win32serviceutil.RemoveService(SERVICE_NAME)
+            logger().log_debug("[helper] Service '{SERVICE_NAME}' deleted")
+        except win32service.error as err:
+            if logger().DEBUG:
+                logger().log_warning("RemoveService failed: {err.args[2]} ({err.args[0]:d})")
+            return False
+
+        return True
+
+    def _get_driver_handle(self) -> 'PyHANDLE':
         # This is bad but DeviceIoControl fails occasionally if new device handle is not opened every time ;(
         if (self.driver_handle is not None) and (INVALID_HANDLE_VALUE != self.driver_handle):
             return self.driver_handle

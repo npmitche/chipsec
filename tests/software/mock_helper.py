@@ -37,16 +37,16 @@ class TestHelper(Helper):
         self.driver_loaded = True
         self.name = "TestHelper"
 
-    def create(self, start_driver):
+    def create(self):
         return True
 
-    def delete(self, start_driver):
+    def delete(self):
         return True
 
-    def start(self, start_driver, driver_exists=False):
+    def start(self):
         return True
 
-    def stop(self, start_driver):
+    def stop(self):
         return True
 
      # This will be used to probe the device, fake a Broadwell CPU

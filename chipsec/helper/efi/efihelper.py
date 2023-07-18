@@ -74,22 +74,22 @@ class EfiHelper(Helper):
 # Driver/service management functions
 ###############################################################################################
 
-    def create(self, start_driver: bool) -> bool:
+    def create(self) -> bool:
         logger().log_debug('[helper] UEFI Helper created')
         return True
 
-    def start(self, start_driver: bool, driver_exists: bool = False) -> bool:
+    def start(self) -> bool:
         # The driver is part of the modified version of edk2.
         # It is always considered as loaded.
         self.driver_loaded = True
         logger().log_debug('[helper] UEFI Helper started/loaded')
         return True
 
-    def stop(self, start_driver: bool) -> bool:
+    def stop(self) -> bool:
         logger().log_debug('[helper] UEFI Helper stopped/unloaded')
         return True
 
-    def delete(self, start_driver: bool) -> bool:
+    def delete(self) -> bool:
         logger().log_debug('[helper] UEFI Helper deleted')
         return True
 

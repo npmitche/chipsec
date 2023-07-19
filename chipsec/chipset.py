@@ -228,7 +228,6 @@ class Chipset:
         self.pch_did = 0xFFFF
         self.pch_rid = 0xFF
         
-        
         if start_helper:
             self.load_helper(helper_name)
             self.start_helper()
@@ -328,6 +327,8 @@ class Chipset:
 
 
     def load_helper(self, helper_name):
+        if not helper_name and issubclass(type(self.helper), Helper):
+            return
         if helper_name:
             if isinstance(helper_name, Helper):
                 self.helper = helper_name

@@ -81,6 +81,8 @@ class OsHelper:
                 self.avail_helpers[f'{helper}helper'] = hlpr
             except ImportError as msg:
                 logger().log_debug(f"Unable to load helper: {helper}")
+            except NameError as msg:
+                logger().log_debug(f"Unable to load helper due to name error: {helper}")
 
     def get_helper(self, name: str) -> Any:
         ret = None

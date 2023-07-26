@@ -28,7 +28,7 @@ from typing import Any, Dict, Optional, Tuple, Union
 from chipsec.helper.oshelper import helper as os_helper
 from chipsec.helper.basehelper import Helper
 from chipsec.helper.nonehelper import NoneHelper
-from chipsec.hal import cpu, io, iobar, mmio, msgbus, msr, pci, physmem, ucode, igd, cpuid
+from chipsec.hal import cpu, io, iobar, mmio, msgbus, msr, pci, physmem, ucode, cpuid
 from chipsec.hal.pci import PCI_HDR_RID_OFF
 from chipsec.exceptions import UnknownChipsetError, DeviceNotFoundError, CSReadError
 from chipsec.exceptions import RegisterTypeNotFoundError, OsHelperError
@@ -97,7 +97,7 @@ class Chipset:
         self.msgbus = msgbus.MsgBus(self)
         self.mmio = mmio.MMIO(self)
         self.iobar = iobar.IOBAR(self)
-        self.igd = igd.IGD(self)
+
         #
         # All HAL components which use above 'basic primitive' HAL components
         # should be instantiated in modules/utilcmd with an instance of chipset

@@ -18,8 +18,6 @@
 # chipsec@intel.com
 #
 
-
-from chipsec.library.register import RegisterType
 from chipsec.logger import logger
 from typing import List, Optional, Tuple, Union
 from chipsec.exceptions import CSFirstNotFoundError, CSBusNotFoundError, DeviceNotFoundError
@@ -30,17 +28,20 @@ from chipsec.exceptions import CSFirstNotFoundError, CSBusNotFoundError, DeviceN
 #
 ##################################################################################
 
+
 class Device:
     def __init__(self, cs) -> None:
         self.cs = cs
 
-    def get_first_bus(self, device:dict) -> int:
+    @staticmethod
+    def get_first_bus(device: dict) -> int:
         '''Retrieves first value in bus list for PCI device'''
         if 'bus' in device:
-            return self.get_first(device['bus'])
+            return Device.get_first(device['bus'])
         raise CSBusNotFoundError()
 
-    def get_first(self, a_list:Union[list, int]) -> int:
+    @staticmethod
+    def get_first(a_list: Union[list, int]) -> int:
         '''Returns received integer or first item from recieved list'''
         if type(a_list) is int:
             return a_list

@@ -81,29 +81,32 @@ class RegisterCommand(BaseCommand):
         parser.parse_args(self.argv, namespace=self)
 
     def reg_read(self):
+        register = self.cs.registers[self.reg_name]
         if self.field_name is not None:
-            value = self.cs.read_register_field(self.reg_name, self.field_name)
+            value = register.read_field(self.field_name)
             self.logger.log("[CHIPSEC] {}.{}=0x{:X}".format(self.reg_name, self.field_name, value))
         else:
-            value = self.cs.read_register(self.reg_name)
+            value = register.read()
             self.logger.log("[CHIPSEC] {}=0x{:X}".format(self.reg_name, value))
-            self.cs.print_register(self.reg_name, value)
+            register.print(value)
 
     def reg_read_field(self):
-        if self.cs.register_has_field(self.reg_name, self.field_name):
-            value = self.cs.read_register_field(self.reg_name, self.field_name)
+        register = self.cs.registers[self.reg_name]
+        if register.has_field(self.field_name):
+            value = register.read_field(self.field_name)
             self.logger.log("[CHIPSEC] {}.{}=0x{:X}".format(self.reg_name, self.field_name, value))
         else:
             self.logger.log_error("[CHIPSEC] Register '{}' doesn't have field '{}' defined".format(self.reg_name, self.field_name))
 
     def reg_write(self):
         self.logger.log("[CHIPSEC] Writing {} < 0x{:X}".format(self.reg_name, self.value))
-        self.cs.write_register(self.reg_name, self.value)
+        self.cs.registers[self.reg_name].write(self.value)
 
     def reg_write_field(self):
-        if self.cs.register_has_field(self.reg_name, self.field_name):
+        register = self.cs.registers[self.reg_name]
+        if register.has_field(self.field_name):
             self.logger.log("[CHIPSEC] Writing {}.{} < 0x{:X}".format(self.reg_name, self.field_name, self.value))
-            self.cs.write_register_field(self.reg_name, self.field_name, self.value)
+            register.write_field(self.field_name, self.value)
         else:
             self.logger.log_error("[CHIPSEC] Register '{}' doesn't have field '{}' defined".format(self.reg_name, self.field_name))
 

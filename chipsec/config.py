@@ -45,6 +45,7 @@ class Cfg:
         self.logger = logger()
         self.CONFIG_PCI = {}
         self.REGISTERS = {}
+        self.REGISTER_OBJS = {}
         self.MMIO_BARS = {}
         self.IO_BARS = {}
         self.IMA_REGISTERS = {}

@@ -243,33 +243,57 @@ class Pci:
     #
 
     def read_dword(self, bus: int, device: int, function: int, address: int) -> int:
-        value = self.helper.read_pci_reg(bus, device, function, address, 4)
-        logger().log_hal(f'[pci] reading B/D/F: {bus:d}/{device:d}/{function:d}, offset: 0x{address:02X}, value: 0x{value:08X}')
+        value = self.read(bus, device, function, address, 4)
         return value
 
     def read_word(self, bus: int, device: int, function: int, address: int) -> int:
-        word_value = self.helper.read_pci_reg(bus, device, function, address, 2)
-        logger().log_hal(f'[pci] reading B/D/F: {bus:d}/{device:d}/{function:d}, offset: 0x{address:02X}, value: 0x{word_value:04X}')
+        word_value = self.read(bus, device, function, address, 2)
         return word_value
 
     def read_byte(self, bus: int, device: int, function: int, address: int) -> int:
-        byte_value = self.helper.read_pci_reg(bus, device, function, address, 1)
-        logger().log_hal(f'[pci] reading B/D/F: {bus:d}/{device:d}/{function:d}, offset: 0x{address:02X}, value: 0x{byte_value:02X}')
+        byte_value = self.read(bus, device, function, address, 1)
         return byte_value
 
+    def read(self, bus: int, device: int, function: int, address: int, size: int) -> int:
+        max_size = 4
+        if not (size in [1, 2] or (size % max_size == 0 and size <= 1780)):
+            raise IndexError("Size out of bounds. Must be 1, 2, or multiple of 4.")
+        if size > max_size:
+            value = 0
+            while size > 0:
+                value_l = self.helper.read_pci_reg(bus, device, function, address, max_size)
+                value = (value << 32) | value_l
+                size -= max_size
+                address += max_size
+        else:
+            value = self.helper.read_pci_reg(bus, device, function, address, size)
+
+        logger().log_hal(f'[pci] reading B/D/F: {bus:d}/{device:d}/{function:d}, offset: 0x{address:02X}, value: 0x{value:0{size*2}X}')
+        return value
+
     def write_byte(self, bus: int, device: int, function: int, address: int, byte_value: int) -> None:
-        self.helper.write_pci_reg(bus, device, function, address, byte_value, 1)
-        logger().log_hal(f'[pci] writing B/D/F: {bus:d}/{device:d}/{function:d}, offset: 0x{address:02X}, value: 0x{byte_value:02X}')
-        return None
+        return self.write(bus, device, function, address, byte_value, 1)
 
     def write_word(self, bus: int, device: int, function: int, address: int, word_value: int) -> None:
-        self.helper.write_pci_reg(bus, device, function, address, word_value, 2)
-        logger().log_hal(f'[pci] writing B/D/F: {bus:d}/{device:d}/{function:d}, offset: 0x{address:02X}, value: 0x{word_value:04X}')
-        return None
+        return self.write(bus, device, function, address, word_value, 2)
 
     def write_dword(self, bus: int, device: int, function: int, address: int, dword_value: int) -> None:
-        self.helper.write_pci_reg(bus, device, function, address, dword_value, 4)
-        logger().log_hal(f'[pci] writing B/D/F: {bus:d}/{device:d}/{function:d}, offset: 0x{address:02X}, value: 0x{dword_value:08X}')
+        return self.write(bus, device, function, address, dword_value, 4)
+    
+    def write(self, bus: int, device: int, function: int, address: int, value: int, size: int) -> None:
+        max_size = 4
+        if size not in [1, 2] or (size % max_size == 0 and size <= 1780):
+            raise IndexError("Size out of bounds. Must be 1, 2, or multiple of 4.")
+        if size > max_size:
+            while size > 0:
+                self.helper.write_pci_reg(bus, device, function, address, value & 0xFFFFFFFF, max_size)
+                value = (value >> 32)
+                size -= max_size
+                address += max_size
+        else:
+            self.helper.write_pci_reg(bus, device, function, address, value, size)
+            
+        logger().log_hal(f'[pci] writing B/D/F: {bus:d}/{device:d}/{function:d}, offset: 0x{address:02X}, value: 0x{value:0{size*2}X}')
         return None
 
     #

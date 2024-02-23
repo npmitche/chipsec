@@ -33,7 +33,7 @@ from chipsec.exceptions import UnknownChipsetError, OsHelperError
 
 from chipsec.logger import logger
 from chipsec.defines import ARCH_VID
-from chipsec.library.register import Register
+from chipsec.library.registertype.register_factory import RegisterFactory
 from chipsec.library.lock import Lock
 from chipsec.library.control import Control
 from chipsec.library.device import Device
@@ -70,7 +70,7 @@ class Chipset:
         self.using_return_codes = False
         self.consistency_checking = False
         self.lock = Lock(self)
-        self.register :Register = Register(self)
+        self.registers = []
         self.control = Control(self)
         self.device = Device(self)
 
@@ -112,6 +112,7 @@ class Chipset:
         _cs.load_helper(helper)
         _cs.start_helper()
         return _cs
+
     def init(self, platform_code, req_pch_code, helper_name=None, start_helper=True, load_config=True, ignore_platform=False):
         self.load_config = load_config
         _unknown_proc = True
@@ -147,6 +148,7 @@ class Chipset:
                 # Load Bus numbers for this platform.
                 if logger().DEBUG:
                     logger().log("[*] Discovering Bus Configuration:")
+            breakpoint()
             if _unknown_pch:
                 msg = f'Unknown PCH: VID = 0x{self.Cfg.pch_vid:04X}, DID = 0x{self.Cfg.pch_did:04X}, RID = 0x{self.Cfg.pch_rid:02X}'
                 if self.Cfg.is_pch_req() and start_helper:
@@ -154,6 +156,9 @@ class Chipset:
                     raise UnknownChipsetError(msg)
                 else:
                     logger().log(f'[!]       {msg}; Using Default.')
+            RegisterFactory(self).create_all_registers()
+            self.registers = self.Cfg.REGISTER_OBJS
+
         if start_helper and ((logger().VERBOSE) or (load_config and (_unknown_pch or _unknown_proc))):
             pci.print_pci_devices(self.pci.enumerate_devices())
         if _unknown_pch or _unknown_proc:
@@ -250,5 +255,5 @@ def cs():
     global _chipset
 
     if _chipset is None:
-        _chipset: Chipset = Chipset()
+        _chipset = Chipset()
     return _chipset

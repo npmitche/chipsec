@@ -74,6 +74,8 @@ class UEFICommand(BaseCommand):
     def requirements(self) -> toLoad:
         if 'decode' in self.argv:
             return toLoad.Nil
+        if 'var-spi-list' in self.argv:
+            return toLoad.All
         return toLoad.Driver
 
     def parse_arguments(self) -> None:
@@ -103,6 +105,10 @@ class UEFICommand(BaseCommand):
         # var-list command args
         parser_var_list = subparsers.add_parser('var-list')
         parser_var_list.set_defaults(func=self.var_list)
+
+        # var-list command args
+        parser_var_list = subparsers.add_parser('var-spi-list')
+        parser_var_list.set_defaults(func=self.var_spi_list)
 
         # var-find command args
         parser_var_find = subparsers.add_parser('var-find')
@@ -224,6 +230,23 @@ class UEFICommand(BaseCommand):
         decode_EFI_variables(efi_vars, nvram_pth)
         self.logger.set_log_file(_orig_logname)
         self.logger.log("[CHIPSEC] Variables are in efi_variables.lst log and efi_variables.dir directory")
+
+    def var_spi_list(self):
+        self.logger.log("[CHIPSEC] Enumerating all EFI variables via OS specific EFI Variable API..")
+        efi_vars = self._uefi.dump_EFI_variables_from_SPI()
+        if efi_vars is None:
+            self.logger.log("[CHIPSEC] Could not enumerate EFI Variables (Legacy OS?). Exit..")
+            return
+        self.logger.log("[CHIPSEC] Decoding EFI Variables..")
+        _orig_logname = self.logger.LOG_FILE_NAME
+        logname = "efi_variables_spi"
+        self.logger.set_log_file(f'{logname}.lst', False)
+        nvram_pth = f'{logname}.dir'
+        if not os.path.exists(nvram_pth):
+            os.makedirs(nvram_pth)
+        decode_EFI_variables(efi_vars, nvram_pth)
+        self.logger.set_log_file(_orig_logname)
+        self.logger.log(f"[CHIPSEC] Variables are in {logname}.lst log and {logname}.dir directory")
 
     def var_find(self):
         _vars = self._uefi.list_EFI_variables()

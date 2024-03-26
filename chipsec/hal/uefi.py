@@ -353,10 +353,13 @@ class UEFI(hal_base.HALBase):
         return self.read_EFI_variables_from_SPI(0, 0x800000)
 
     def read_EFI_variables_from_SPI(self, BIOS_region_base: int, BIOS_region_size: int) -> bytes:
-        rom = self.cs.spi.read_spi(BIOS_region_base, BIOS_region_size)
+        from chipsec.hal.spi import SPI
+        spi = SPI(self.cs)
+        rom = spi.read_spi(BIOS_region_base, BIOS_region_size)
         efi_var_store = find_EFI_variable_store(rom, self._FWType)
         if efi_var_store:
             efi_vars = uefi_platform.EFI_VAR_DICT[self._FWType]['func_getefivariables']
+            breakpoint()
             return efi_vars
         return efi_var_store
 

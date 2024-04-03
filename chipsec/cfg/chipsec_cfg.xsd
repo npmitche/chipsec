@@ -95,7 +95,7 @@
 </xs:attributeGroup>
 
 <xs:complexType name="ima_indirect_type">
-  <xs:attributeGroup ref="ima_indirect_type"/>
+  <xs:attributeGroup ref="ima_indirect_attr"/>
 </xs:complexType>
 
 <!-- MEMORY -->
@@ -160,7 +160,8 @@
 		
 <xs:attributeGroup name="reg_attr">
   <xs:attribute name="name" type="xs:string" use="required"/>
-  <xs:attribute name="type" type="rtype" use="required"/>
+  <xs:attribute name="type" type="rtype" use="optional"/>
+  <xs:attribute name="undef" type="xs:string" use="optional"/>
   <xs:attribute name="access" type="regaccess_type" use="optional"/>
   <xs:attribute name="desc" type="xs:string" use="optional"/>
   <xs:attribute name="size" type="xs:string" use="optional"/>
@@ -172,6 +173,7 @@
   <xs:attribute name="msr" type="xs:string" use="optional"/>
   <xs:attribute name="offset" type="xs:string" use="optional"/>
   <xs:attribute name="port" type="xs:string" use="optional"/>
+  <!-- <xsd:assert test="(@type and not(@undef)) or (not(@type) and @undef)"/>  -->
 </xs:attributeGroup>
 
 <xs:complexType name="reg_type">
@@ -211,6 +213,26 @@
   <xs:attribute name="desc" type="xs:string" use="optional"/>
 </xs:attributeGroup>
 
+<!-- Info -->
+<xs:complexType name="info_type">
+  <xs:sequence>
+     <xs:element name="sku" type="sku_type" minOccurs="0" maxOccurs="unbounded"/>
+  </xs:sequence>
+  <xs:attribute name="family" type="xs:string" use="required"/>
+  <xs:attribute name="detection_value" type="xs:string" use="optional"/>
+</xs:complexType>
+
+<xs:complexType name="sku_type">
+  <xs:attributeGroup ref="sku_attr"/>
+</xs:complexType>
+
+<xs:attributeGroup name="sku_attr">
+  <xs:attribute name="name" type="xs:string" use="required"/>
+  <xs:attribute name="did" type="xs:string" use="required"/>
+  <xs:attribute name="code" type="xs:string" use="required"/>
+  <xs:attribute name="longname" type="xs:string" use="optional"/>
+</xs:attributeGroup>
+
 <!-- configuration -->
 <xs:element name="configuration">
   <xs:complexType>
@@ -222,8 +244,10 @@
       <xs:element name="ima" type="ima_type" minOccurs="0"/>
       <xs:element name="registers" type="regs_type" minOccurs="0"/>
       <xs:element name="controls" type="controls_type" minOccurs="0"/>
+      <xs:element name="info" type="info_type" minOccurs="0"/>
     </xs:all>
     <xs:attribute name="platform" type="xs:string" use="optional"/>
+    <xs:attribute name="req_pch" type="xs:string" use="optional"/>
   </xs:complexType>
 </xs:element>
 

@@ -18,8 +18,10 @@
 # chipsec@intel.com
 #
 
+from collections import namedtuple
 from fnmatch import fnmatch
 import importlib
+import re
 import os
 import xml.etree.ElementTree as ET
 from chipsec.library.defines import is_hex
@@ -29,7 +31,10 @@ from chipsec.library.logger import logger
 from chipsec.parsers import Stage
 from chipsec.parsers import stage_info, config_data
 
-LOAD_COMMON = True
+
+scope_name = namedtuple("scope_name", ["vid", "parent", "name", "fields"])
+# Python 3.6 namedtuple does not accept defaults
+scope_name.__new__.__defaults__ = (None,) * 4
 
 CHIPSET_ID_UNKNOWN = 0
 
@@ -43,16 +48,9 @@ PCH_CODE_PREFIX = 'PCH_'
 class Cfg:
     def __init__(self):
         self.logger = logger()
-        self.CONFIG_PCI = {}
-        self.REGISTERS = {}
-        self.MMIO_BARS = {}
-        self.IO_BARS = {}
-        self.IMA_REGISTERS = {}
-        self.MEMORY_RANGES = {}
-        self.CONTROLS = {}
-        self.BUS = {}
-        self.LOCKS = {}
-        self.LOCKEDBY = {}
+        self.keys = ["CONFIG_PCI", "REGISTERS", "MMIO_BARS", "IO_BARS", "IMA_REGISTERS", "MEMORY_RANGES", "CONTROLS", "BUS", "LOCKS", "LOCKEDBY"]
+        for key in self.keys:
+            setattr(self, key, {})
         self.XML_CONFIG_LOADED = False
 
         self.proc_dictionary = {}
@@ -84,9 +82,24 @@ class Cfg:
     ###
     # Private functions
     ###
+    def _get_vid_from_filename(self, fname):
+        search_string = re.compile(r'cfg.[0-9a-fA-F]+')
+        match = search_string.search(fname)
+        vid = match.group(0)[4:]
+        return vid
+
     def _make_hex_key_str(self, int_val):
         str_val = '{:04X}'.format(int_val)
         return str_val
+    
+    def _create_vid(self, vid_str):
+        skip_keys = ["LOCKS"]
+        if vid_str not in self.CONFIG_PCI:
+            for key in self.keys:
+                if key in skip_keys:
+                    continue
+                mdict = getattr(self, key)
+                mdict[vid_str] = {}
 
     ###
     # PCI device tree enumeration
@@ -105,11 +118,28 @@ class Cfg:
                 'did': did,
                 'rid': rid}
             if vid_str not in self.CONFIG_PCI_RAW:
-                self.CONFIG_PCI_RAW[vid_str] = {}
+                self._create_vid(vid_str)
             if did_str not in self.CONFIG_PCI_RAW[vid_str]:
-                self.CONFIG_PCI_RAW[vid_str][did_str] = pci_data
-            elif b not in self.CONFIG_PCI_RAW[vid_str][did_str]['bus']:
-                self.CONFIG_PCI_RAW[vid_str][did_str]['bus'].append(b)
+                self.CONFIG_PCI_RAW[vid_str][did_str] = [pci_data]
+                continue
+            found_config = False
+            for cfg_data in self.CONFIG_PCI_RAW[vid_str][did_str]:
+                if d == cfg_data['dev'] and f == cfg_data['fun']:
+                    found_config = True
+                    if b not in cfg_data['bus']:
+                        cfg_data['bus'].append(b)
+                    break
+            if not found_config:
+                self.CONFIG_PCI_RAW[vid_str][did_str].append(pci_data)
+
+    ###
+    # CPU topology info
+    ###
+    def set_topology(self, topology):
+        if not hasattr(self, 'CPU'):
+            setattr(self, 'CPU', {})
+        self.CPU.update(topology)
+        self.logger.log_hal(f'Added topology to self.CPU\n{self.CPU}')
 
     ###
     # Platform detection functions
@@ -154,7 +184,9 @@ class Cfg:
         for parser in self.parsers:
             if parser.get_stage() != stage:
                 continue
-            handlers.update(parser.get_metadata())
+            if parser.parser_name() in handlers:
+                raise CSConfigError(f"Tag handlers already contain handlers for parser {parser.parser_name()}")
+            handlers.update({parser.parser_name(): parser.get_metadata()})
         return handlers
 
     def _update_supported_platforms(self, conf_data, data):
@@ -206,13 +238,13 @@ class Cfg:
                         if did_str not in self.CONFIG_PCI_RAW[vid_str]:
                             continue
                         if sku['detect'] and detect_val and detect_val not in sku['detect']:
-                            possible_sku.append(sku)
+                            # possible_sku.append(sku)
                             continue
                     return sku
-        if possible_sku:
-            if len(possible_sku) > 1:
-                logger().log_warning("Multiple SKUs found for detection value")
-            return possible_sku.pop()
+        # if possible_sku:
+        #     if len(possible_sku) > 1:
+        #         logger().log_warning("Multiple SKUs found for detection value")
+        #     return possible_sku.pop()
         return None
     
     def _find_did(self, sku):
@@ -333,7 +365,9 @@ class Cfg:
             if not proc_code:
                 vid_str = self._make_hex_key_str(self.vid)
                 did_str = self._make_hex_key_str(self.did)
-                self.rid = self.CONFIG_PCI_RAW[vid_str][did_str]['rid']
+                for cfg_data in self.CONFIG_PCI_RAW[vid_str][did_str]:
+                    if 0x0 == cfg_data['dev'] and 0x0 == cfg_data['fun']:
+                        self.rid = cfg_data['rid']
             self.longname = sku['longname']
             self.req_pch = sku['req_pch']
 
@@ -350,8 +384,6 @@ class Cfg:
             self.pch_longname = sku['longname']
 
         # Create XML file load list
-        if LOAD_COMMON:
-            self.load_list.extend(self.get_common_xml())
         if self.code:
             self.load_list.extend(self.platform_xml_files[self.code])
         if self.pch_code:

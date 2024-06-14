@@ -66,6 +66,9 @@ class BaseConfigParser:
         self.logger = logger()
         self.cfg = cfg_obj
 
+    def parser_name(self):
+        return self.__class__.__name__
+    
     def startup(self):
         return None
 

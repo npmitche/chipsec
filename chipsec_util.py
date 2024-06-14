@@ -33,7 +33,7 @@ from time import time
 from typing import Sequence, Optional, Dict, Any
 from chipsec.helper.oshelper import helper
 from chipsec.library.logger import logger, level
-from chipsec.library.banner import print_banner, print_banner_properties
+from chipsec.library.display import print_banner, print_banner_properties
 from chipsec.library.exceptions import UnknownChipsetError
 from chipsec.library.options import Options
 from chipsec.testcase import ExitCode

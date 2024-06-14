@@ -19,7 +19,7 @@
 #
 
 """
-Banner functions
+Display functions
 """
 
 import platform
@@ -86,3 +86,16 @@ def print_banner_properties(cs: Chipset, os_version: Tuple[str, str, str, str]) 
     if not cs.load_config:
         logger().log_warning("Not loading configurations. Platform will remain unknown.")
     logger().log(chipsec_banner_properties(cs, os_version))
+
+
+def make_dict_hex(int_dict: dict) -> dict:
+    hex_dict = {}
+    for d in int_dict:
+        if isinstance(int_dict[d], list):
+            hex_dict[d] = [hex(item) if isinstance(item, int) else item for item in int_dict[d]]
+        elif(isinstance(int_dict[d], int)):
+            hex_dict[d] = hex(int_dict[d])
+        else:
+            hex_dict[d] = int_dict[d]
+
+    return hex_dict

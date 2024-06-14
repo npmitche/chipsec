@@ -1,0 +1,131 @@
+
+################################################################
+##                                                            ##
+##  CHIPSEC: Platform Hardware Security Assessment Framework  ##
+##                                                            ##
+################################################################
+[CHIPSEC] Version  : 1.13.1
+[CHIPSEC] Arguments: -m common.cpu.cpu_info -l tmp.log
+
+
+WARNING: *******************************************************************
+WARNING: Chipsec should only be used on test systems!
+WARNING: It should not be installed/deployed on production end-user systems.
+WARNING: See WARNING.txt
+WARNING: *******************************************************************
+
+
+[CHIPSEC] OS      : Windows 10 10.0.22631 AMD64
+[CHIPSEC] Python  : 3.10.1 (64-bit)
+[CHIPSEC] Helper  : WindowsHelper (\??\C:\Users\Nathaniel\git\chipsec\chipsec\helper\windows\windows_amd64\chipsec_hlpr.sys)
+[CHIPSEC] Platform: ADL-P/H 4+8
+[CHIPSEC]    CPUID: 906A2
+[CHIPSEC]      VID: 8086
+[CHIPSEC]      DID: 4621
+[CHIPSEC]      RID: 01
+[CHIPSEC] PCH     : Intel ADL-P (600) PCH
+[CHIPSEC]      VID: 8086
+[CHIPSEC]      DID: 5182
+[CHIPSEC]      RID: 01
+
+ 
+[+] loaded chipsec.modules.common.cpu.cpu_info
+[*] running loaded modules ..
+
+[*] Running module: chipsec.modules.common.cpu.cpu_info
+[x][ =======================================================================
+[x][ Module: Current Processor Information:
+[x][ =======================================================================
+[*] Thread 0000
+[*] Processor: 12th Gen Intel(R) Core(TM) i5-1240P
+[*]            Family: 06 Model: 9A Stepping: 2
+[*]            Microcode: 0000030D
+[*]
+[*] Thread 0001
+[*] Processor: 12th Gen Intel(R) Core(TM) i5-1240P
+[*]            Family: 06 Model: 9A Stepping: 2
+[*]            Microcode: 0000030D
+[*]
+[*] Thread 0002
+[*] Processor: 12th Gen Intel(R) Core(TM) i5-1240P
+[*]            Family: 06 Model: 9A Stepping: 2
+[*]            Microcode: 0000030D
+[*]
+[*] Thread 0003
+[*] Processor: 12th Gen Intel(R) Core(TM) i5-1240P
+[*]            Family: 06 Model: 9A Stepping: 2
+[*]            Microcode: 0000030D
+[*]
+[*] Thread 0004
+[*] Processor: 12th Gen Intel(R) Core(TM) i5-1240P
+[*]            Family: 06 Model: 9A Stepping: 2
+[*]            Microcode: 0000030D
+[*]
+[*] Thread 0005
+[*] Processor: 12th Gen Intel(R) Core(TM) i5-1240P
+[*]            Family: 06 Model: 9A Stepping: 2
+[*]            Microcode: 0000030D
+[*]
+[*] Thread 0006
+[*] Processor: 12th Gen Intel(R) Core(TM) i5-1240P
+[*]            Family: 06 Model: 9A Stepping: 2
+[*]            Microcode: 0000030D
+[*]
+[*] Thread 0007
+[*] Processor: 12th Gen Intel(R) Core(TM) i5-1240P
+[*]            Family: 06 Model: 9A Stepping: 2
+[*]            Microcode: 0000030D
+[*]
+[*] Thread 0008
+[*] Processor: 12th Gen Intel(R) Core(TM) i5-1240P
+[*]            Family: 06 Model: 9A Stepping: 2
+[*]            Microcode: 0000030D
+[*]
+[*] Thread 0009
+[*] Processor: 12th Gen Intel(R) Core(TM) i5-1240P
+[*]            Family: 06 Model: 9A Stepping: 2
+[*]            Microcode: 0000030D
+[*]
+[*] Thread 0010
+[*] Processor: 12th Gen Intel(R) Core(TM) i5-1240P
+[*]            Family: 06 Model: 9A Stepping: 2
+[*]            Microcode: 0000030D
+[*]
+[*] Thread 0011
+[*] Processor: 12th Gen Intel(R) Core(TM) i5-1240P
+[*]            Family: 06 Model: 9A Stepping: 2
+[*]            Microcode: 0000030D
+[*]
+[*] Thread 0012
+[*] Processor: 12th Gen Intel(R) Core(TM) i5-1240P
+[*]            Family: 06 Model: 9A Stepping: 2
+[*]            Microcode: 0000030D
+[*]
+[*] Thread 0013
+[*] Processor: 12th Gen Intel(R) Core(TM) i5-1240P
+[*]            Family: 06 Model: 9A Stepping: 2
+[*]            Microcode: 0000030D
+[*]
+[*] Thread 0014
+[*] Processor: 12th Gen Intel(R) Core(TM) i5-1240P
+[*]            Family: 06 Model: 9A Stepping: 2
+[*]            Microcode: 0000030D
+[*]
+[*] Thread 0015
+[*] Processor: 12th Gen Intel(R) Core(TM) i5-1240P
+[*]            Family: 06 Model: 9A Stepping: 2
+[*]            Microcode: 0000030D
+[*]
+[#] INFORMATION: Processor information displayed
+
+[CHIPSEC] ***************************  SUMMARY  ***************************
+[CHIPSEC] 
+[CHIPSEC] Modules total           1
+[CHIPSEC] Modules failed to run   0:
+[CHIPSEC] Modules passed          0:
+[CHIPSEC] Modules information     1:
+[#] INFORMATION: chipsec.modules.common.cpu.cpu_info
+[CHIPSEC] Modules failed          0:
+[CHIPSEC] Modules with warnings   0:
+[CHIPSEC] Modules not applicable  0:
+[CHIPSEC] *****************************************************************

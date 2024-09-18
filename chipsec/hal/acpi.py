@@ -371,12 +371,15 @@ class ACPI(HALBase):
     #
     def get_ACPI_table_list(self) -> Dict[str, List[int]]:
         try:
-            # 1. If didn't work, try using get_ACPI_table if a helper implemented
+            # 1. Try using get_ACPI_table if a helper implemented
             #    reading ACPI tables via native API which some OS may provide
-            # raise UnimplementedAPIError("asdf")
             logger().log_hal("[acpi] Trying to enumerate ACPI tables using get_ACPI_table...")
-            for table_name in self.cs.helper.enum_ACPI_tables():
-                self.tableList[table_name.decode("utf-8")].append(0)
+            found_acpi_tables = self.cs.helper.enum_ACPI_tables()
+            if found_acpi_tables:
+                for table_name in found_acpi_tables:
+                    self.tableList[table_name.decode("utf-8")].append(0)
+            else:
+                raise UnimplementedAPIError("ACPI Tables were not found using oshelper method. Searching memory.")
         except UnimplementedAPIError:
             # 2. Try to extract ACPI table(s) from physical memory
             #    read_physical_mem can be implemented using both

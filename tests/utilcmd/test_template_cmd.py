@@ -30,6 +30,7 @@ from tests.utilcmd.run_chipsec_util import setup_run_destroy_util
 from chipsec.testcase import ExitCode
 
 class TestTemplateUtilcmd(unittest.TestCase):
+    @unittest.skip('Example test. "template" command does not exist.')
     def test_command(self) -> None:
         init_replay_file = os.path.join(get_main_dir(), "tests", "utilcmd", "adlenumerate.json")
         template_dump_replay_file = os.path.join(get_main_dir(), "tests", "utilcmd", "template_cmd", "template_cmd_command_1.json")

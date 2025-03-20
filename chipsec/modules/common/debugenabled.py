@@ -95,7 +95,7 @@ class debugenabled(BaseModule):
             IA32_DEBUG_INTERFACE_DEBUGEOCCURED = self.cs.register.get_field('IA32_DEBUG_INTERFACE', dbgiface, 'DEBUG_OCCURRED') == 1
 
             if self.logger.VERBOSE:
-                self.cs.register.print('IA32_DEBUG_INTERFACE', dbgiface)
+                self.cs.register.print('IA32_DEBUG_INTERFACE', dbgiface, cpu_thread=tid)
 
             if IA32_DEBUG_INTERFACE_DEBUGENABLE:
                 self.logger.log_bad('CPU debug enable requested by software.')

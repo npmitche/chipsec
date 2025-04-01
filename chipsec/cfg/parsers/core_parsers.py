@@ -44,6 +44,7 @@ from chipsec.parsers import Stage
 from chipsec.parsers import info_data, config_data
 from chipsec.library.display import make_dict_hex
 from chipsec.library.strings import make_hex_key_str
+from chipsec.library.logger import logger
 
 CONFIG_TAG = 'configuration'
 
@@ -187,7 +188,7 @@ class DevConfig(BaseConfigParser):
                 continue
             dev_name = node_attr['name']
             if dev_name not in dest[vid_str]:
-                print(dest, cfg_obj)
+                logger().log(dest, cfg_obj)
                 new_obj = cfg_obj(copy.deepcopy(node_attr))
                 dest[vid_str][dev_name] = new_obj
             else: # Q: This else doesn't seem right to me.

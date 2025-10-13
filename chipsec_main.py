@@ -64,7 +64,7 @@ def parse_args(argv: Sequence[str]) -> Optional[Dict[str, Any]]:
 
     """Parse the arguments provided on the command line."""
     parser = argparse.ArgumentParser(usage='%(prog)s [options]', formatter_class=argparse.RawDescriptionHelpFormatter,
-                                     epilog=ExitCode.help_epilog, add_help=False)
+                                     epilog=ExitCode.help_epilog, add_help=False, exit_on_error=False)
     options = parser.add_argument_group('Options')
     options.add_argument('-h', '--help', help="Show this message and exit", action='store_true')
     options.add_argument('-m', '--module', dest='_module', help='Specify module to run (example: -m common.bios_wp)')
@@ -100,7 +100,11 @@ def parse_args(argv: Sequence[str]) -> Optional[Dict[str, Any]]:
     adv_options.add_argument('-nl', dest='_autolog_disable', action='store_true', help="Chipsec won't save logs automatically")
     adv_options.add_argument('-rc', dest='_return_codes', help='Return codes mode', action='store_true')
 
-    par = vars(parser.parse_args(argv))
+    try:
+        par = vars(parser.parse_args(argv))
+    except argparse.ArgumentError as arg_err:
+        print(f'Argument parsing error: {str(arg_err)}')
+        return None
     if par['help']:
         if par['_show_banner']:
             print_banner(argv, defines.get_version(), defines.get_message())

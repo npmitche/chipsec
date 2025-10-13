@@ -84,7 +84,7 @@ def parse_args(argv: Sequence[str]) -> Optional[Dict[str, Any]]:
     default_helper = options.get_section_data('Util_Config', 'default_helper', None)
     global_usage = "Additional arguments for specific command.\n\n All numeric values are in hex\n<width> is in {1, byte, 2, word, 4, dword}\n\n"
     cmds = import_cmds()
-    parser = argparse.ArgumentParser(usage='%(prog)s [options] <command>', add_help=False)
+    parser = argparse.ArgumentParser(usage='%(prog)s [options] <command>', add_help=False, exit_on_error=False)
     options = parser.add_argument_group('Options')
     options.add_argument('-h', '--help', dest='show_help', help="Show this message and exit", action='store_true')
     options.add_argument('-v', '--verbose', help='Verbose logging', action='store_true')
@@ -106,8 +106,11 @@ def parse_args(argv: Sequence[str]) -> Optional[Dict[str, Any]]:
     options.add_argument('_cmd', metavar='Command', nargs='?', choices=sorted(cmds.keys()), type=str.lower, default="help",
                          help=f"Util command to run: {{{','.join(sorted(cmds.keys()))}}}")
     options.add_argument('_cmd_args', metavar='Command Args', nargs=argparse.REMAINDER, help=global_usage)
-    par = vars(parser.parse_args(argv))
-
+    try:
+        par = vars(parser.parse_args(argv))
+    except argparse.ArgumentError as arg_err:
+        print(f'Argument parsing error: {str(arg_err)}')
+        return None
     if par['_cmd'] == 'help' or par['show_help']:
         if par['_show_banner']:
             print_banner(argv, get_version(), get_message())

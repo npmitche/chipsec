@@ -183,15 +183,18 @@ class remap(BaseModule):
         return self.result.getReturnCode(res)
 
     def check_remap_base_and_limit(self, remapbase_regs: list, remaplimit_regs: list, touud: int, is_warning: bool, remap_ok: bool) -> Tuple[bool, bool]:
-        bars = set([reg.bar for reg in remapbase_regs])
+        instance_bar_pairs = set([(reg.instance, reg.bar) for reg in remapbase_regs])
 
-        for bar in bars:
-            remapbase_reg = [reg for reg in remapbase_regs if reg.bar == bar]
-            remaplimit_reg = [reg for reg in remaplimit_regs if reg.bar == bar]
+        for instance, bar in instance_bar_pairs:
+            remapbase_reg = [reg for reg in remapbase_regs if reg.instance == instance and reg.bar == bar]
+            remaplimit_reg = [reg for reg in remaplimit_regs if reg.instance == instance and reg.bar == bar]
 
             if len(remapbase_reg) == len(remaplimit_reg) == 1:
                 remapbase_reg = remapbase_reg[0]
                 remaplimit_reg = remaplimit_reg[0]
+            else:
+                self.logger.log_warning(f'Multiple REMAPBASE/REMAPLIMIT registers found for instance {instance} and bar {bar}. Skipping this pair.')
+                continue
 
             remapbase = remapbase_reg.get_field('REMAPBASE')
             remaplimit = remaplimit_reg.get_field('REMAPLMT')

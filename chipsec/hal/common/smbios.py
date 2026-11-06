@@ -354,9 +354,11 @@ class SMBIOS(hal_base.HALBase):
         # Fall back to scanning only the legacy BIOS region; scanning below SMRAM can fault on unmapped pages.
         if self.smbios_2_pa is None and self.smbios_3_pa is None:
             logger().log_hal('Scanning legacy BIOS region for SMBIOS signatures')
-            pa = BOUNDARY_1MB - SCAN_SIZE
-            while (pa >= SCAN_LOW_LIMIT):
-                mem_buffer = self.cs.hals.memory.read_physical_mem(pa, SCAN_SIZE)
+            chunks = self.cs.hals.memory.readable_chunks(SCAN_LOW_LIMIT, BOUNDARY_1MB, SCAN_SIZE)
+            if chunks is None:
+                chunks = [(pa, SCAN_SIZE) for pa in range(BOUNDARY_1MB - SCAN_SIZE, SCAN_LOW_LIMIT - 1, -SCAN_SIZE)]
+            for (pa, chunk_len) in chunks:
+                mem_buffer = self.cs.hals.memory.read_physical_mem(pa, chunk_len)
                 sig_pa = mem_buffer.find(SMBIOS_2_x_SIG) + pa
                 if sig_pa >= pa and self.smbios_2_pa is None:
                     logger().log_hal(f'+ Found SMBIOS 2.x signature @ 0x{sig_pa:08X}')
@@ -373,7 +375,6 @@ class SMBIOS(hal_base.HALBase):
                         self.smbios_3_pa = sig_pa
                 if self.smbios_2_pa is not None and self.smbios_3_pa is not None:
                     break
-                pa -= SCAN_SIZE
 
         # Check to see if we thing we found the structure
         if self.smbios_2_pa is None and self.smbios_3_pa is None:

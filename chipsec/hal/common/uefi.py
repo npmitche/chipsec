@@ -257,7 +257,6 @@ class UEFI(hal_base.HALBase):
         table_header = None
         table = None
         table_buf = b''
-        pa = smram_base - CHUNK_SZ
         isFound = False
 
         try:
@@ -266,23 +265,27 @@ class UEFI(hal_base.HALBase):
             logger().log_hal(f'[uefi] Unable to determine TSEG region, scanning all memory. Error: {err}')
             tseg_base = tseg_limit = 0
 
-        while pa > CHUNK_SZ:
+        chunks = self.cs.hals.memory.readable_chunks(CHUNK_SZ, smram_base, CHUNK_SZ)
+        if chunks is None:
+            chunks = [(pa, CHUNK_SZ) for pa in range(smram_base - CHUNK_SZ, CHUNK_SZ, -CHUNK_SZ)]
+        else:
+            logger().log_hal(f'[uefi] Limiting scan to {len(chunks):d} chunk(s) from the UEFI memory map')
+
+        for (pa, chunk_len) in chunks:
             if (pa <= tseg_limit) and (pa >= tseg_base):
                 logger().log_hal(f'[uefi] Skipping memory read at pa: {pa:016X}')
-                pa -= CHUNK_SZ
                 continue
             logger().log_hal(f'[uefi] Reading 0x{pa:016X}...')
             try:
-                membuf = self.cs.hals.memory.read_physical_mem(pa, CHUNK_SZ)
+                membuf = self.cs.hals.memory.read_physical_mem(pa, chunk_len)
             except OsHelperError as err:
                 logger().log_hal(f'[uefi] Unable to read memory at pa: {pa:016X} Error: {err}')
-                pa -= CHUNK_SZ
                 continue
             pos = bytestostring(membuf).find(table_sig)
             if -1 != pos:
                 table_pa = pa + pos
                 logger().log_hal(f"[uefi] Round signature '{table_sig}' at 0x{table_pa:016X}...")
-                if pos < (CHUNK_SZ - EFI_TABLE_HEADER_SIZE):
+                if pos < (chunk_len - EFI_TABLE_HEADER_SIZE):
                     hdr = membuf[pos: pos + EFI_TABLE_HEADER_SIZE]
                 else:
                     hdr = self.cs.hals.memory.read_physical_mem(table_pa, EFI_TABLE_HEADER_SIZE)
@@ -302,7 +305,7 @@ class UEFI(hal_base.HALBase):
                     isFound = True
                     logger().log_hal(f"[uefi] Found EFI table at 0x{table_pa:016X} with signature '{table_sig}'...")
                     table_size = struct.calcsize(EFI_TABLES[table_sig]['fmt'])
-                    if pos < (CHUNK_SZ - EFI_TABLE_HEADER_SIZE - table_size):
+                    if pos < (chunk_len - EFI_TABLE_HEADER_SIZE - table_size):
                         table_buf = membuf[pos: pos + EFI_TABLE_HEADER_SIZE + table_size]
                     else:
                         table_buf = self.cs.hals.memory.read_physical_mem(table_pa, EFI_TABLE_HEADER_SIZE + table_size)
@@ -313,7 +316,6 @@ class UEFI(hal_base.HALBase):
                     logger().log_hal(str(table_header))
                     logger().log_hal(str(table))
                     break
-            pa -= CHUNK_SZ
         if not isFound:
             logger().log_hal(f"[uefi] Could not find EFI table with signature '{table_sig}'")
         return (isFound, table_pa, table_header, table, table_buf)

@@ -68,6 +68,9 @@ class RecordHelper(Helper):
     def firmware_type(self) -> Optional[str]:
         return self._call_subhelper()
 
+    def get_memory_map(self) -> Optional[List[Tuple[int, int, int, int]]]:
+        return self._call_subhelper()
+
     def _add_element(self, cmd: str, args: Tuple, ret: Any) -> None:
         try:
             margs = f"({','.join(str(i) for i in args)})"

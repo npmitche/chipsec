@@ -29,10 +29,15 @@ usage:
 """
 
 from struct import unpack, pack
-from typing import Any, Dict, Tuple, Optional
+from typing import Any, Dict, List, Tuple, Optional
 from chipsec.hal.hal_base import HALBase
 from chipsec.library.logger import print_buffer_bytes
 from chipsec.library.bits import make_mask
+
+# Conventional, Unusable, MMIO, MMIO port space, Unaccepted: may be unmapped or not DRAM-backed.
+UNREADABLE_EFI_MEMORY_TYPES = {7, 8, 11, 12, 15}
+EFI_MEMORY_RP = 0x2000
+EFI_PAGE_SIZE = 0x1000
 
 
 class Memory(HALBase):
@@ -111,6 +116,37 @@ class Memory(HALBase):
             return None
         self.logger.log_hal(f'[mem] VA (0x{va:016X}) -> PA (0x{pa:016X})')
         return pa
+
+    def get_readable_ranges(self) -> Optional[List[Tuple[int, int]]]:
+        """Return sorted, merged [start, end) ranges safe to scan, or None if no memory map is available."""
+        mem_map = self.helper.get_memory_map()
+        if mem_map is None:
+            return None
+        ranges: List[Tuple[int, int]] = []
+        for (mem_type, start, num_pages, attr) in sorted(mem_map, key=lambda desc: desc[1]):
+            if mem_type in UNREADABLE_EFI_MEMORY_TYPES or (attr & EFI_MEMORY_RP):
+                continue
+            end = start + num_pages * EFI_PAGE_SIZE
+            if ranges and ranges[-1][1] == start:
+                ranges[-1] = (ranges[-1][0], end)
+            else:
+                ranges.append((start, end))
+        return ranges
+
+    def readable_chunks(self, low: int, high: int, chunk_size: int) -> Optional[List[Tuple[int, int]]]:
+        """Return (pa, size) reads covering readable memory in [low, high), highest address first, or None if unknown."""
+        ranges = self.get_readable_ranges()
+        if ranges is None:
+            return None
+        chunks = []
+        for (start, end) in reversed(ranges):
+            start = max(start, low)
+            end = min(end, high)
+            while end > start:
+                pa = max(start, end - chunk_size)
+                chunks.append((pa, end - pa))
+                end = pa
+        return chunks
 
     # Map physical address to virtual
 

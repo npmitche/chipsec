@@ -75,6 +75,12 @@ class ReplayHelper(Helper):
     def firmware_type(self) -> Optional[str]:
         return self._get_element_eval('firmware_type', ())
 
+    def get_memory_map(self) -> Optional[List[Tuple[int, int, int, int]]]:
+        # Older recordings predate this call; treat as unavailable rather than missing.
+        if 'get_memory_map' not in self._data:
+            return None
+        return self._get_element_eval('get_memory_map', ())
+
     def _get_element_eval(self, cmd: str, args: Tuple) -> Optional[Any]:
         element = self._get_element(cmd, args)
         if type(element) is str:

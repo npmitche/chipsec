@@ -47,6 +47,10 @@ from chipsec.library.exceptions import UnimplementedAPIError
 _tools = {
 }
 
+# EFI_MEMORY_DESCRIPTOR: Type, Pad, PhysicalStart, VirtualStart, NumberOfPages, Attribute
+EFI_MEMORY_DESCRIPTOR_FMT = '<IIQQQQ'
+EFI_MEMORY_DESCRIPTOR_SIZE = struct.calcsize(EFI_MEMORY_DESCRIPTOR_FMT)
+
 class EfiHelper(Helper):
 
     def __init__(self):
@@ -135,6 +139,19 @@ class EfiHelper(Helper):
         va = pa  # UEFI Shell has identity mapping
         logger().log_debug(f'[helper] PA (0X{pa:016X}) -> VA (0X{va:016X})')
         return va
+
+    def get_memory_map(self) -> Optional[List[Tuple[int, int, int, int]]]:
+        if not hasattr(edk2, 'GetMemoryMap'):
+            return None
+        (status, map_buf, desc_size, _) = edk2.GetMemoryMap()
+        if status != 0 or desc_size < EFI_MEMORY_DESCRIPTOR_SIZE:
+            logger().log_debug(f'[helper] GetMemoryMap failed. Status: 0x{status:X}')
+            return None
+        mem_map = []
+        for off in range(0, len(map_buf) - EFI_MEMORY_DESCRIPTOR_SIZE + 1, desc_size):
+            (mem_type, _, phys_start, _, num_pages, attr) = struct.unpack_from(EFI_MEMORY_DESCRIPTOR_FMT, map_buf, off)
+            mem_map.append((mem_type, phys_start, num_pages, attr))
+        return mem_map
 
     #
     # Memory-mapped I/O (MMIO) access

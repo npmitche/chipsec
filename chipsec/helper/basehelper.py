@@ -76,6 +76,10 @@ class Helper(ABC):
     def firmware_type(self) -> Optional[str]:
         return None
 
+    def get_memory_map(self) -> Optional[List[Tuple[int, int, int, int]]]:
+        """Return UEFI memory map as (Type, PhysicalStart, NumberOfPages, Attribute), or None if unavailable."""
+        return None
+
     #################################################################################################
     # Actual OS helper functionality accessible to HAL components
 

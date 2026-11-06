@@ -85,6 +85,7 @@ def entry_point_3x(table_addr=TABLE_ADDR, max_size=TABLE_LEN, entry_len=0x18,
 def make_smbios():
     """SMBIOS HAL wired to a mock chipset with the UEFI dependency stubbed out."""
     cs = MagicMock()
+    cs.hals.memory.readable_chunks.return_value = None
     with patch.object(smbios.uefi, 'UEFI', MagicMock()):
         hal = SMBIOS(cs)
     return hal, cs
@@ -461,6 +462,26 @@ class TestTableDiscovery(unittest.TestCase):
         self.assertFalse(hal.find_smbios_table())
         scanned = [c.args[0] for c in cs.hals.memory.read_physical_mem.call_args_list if c.args[1] == smbios.SCAN_SIZE]
         self.assertTrue(all(smbios.SCAN_LOW_LIMIT <= pa < smbios.BOUNDARY_1MB for pa in scanned))
+
+    def test_legacy_scan_reads_only_chunks_from_the_memory_map(self):
+        table = bios_info()
+        ep_pa = smbios.SCAN_LOW_LIMIT + 0x100
+        hal, cs = self._hal_with_memory({ep_pa: entry_point_2x(table_len=len(table)), TABLE_ADDR: table})
+        cs.hals.memory.readable_chunks.return_value = [(ep_pa, 0x100)]
+        cs.hals.memory.read_physical_mem.side_effect = lambda pa, size: (
+            entry_point_2x(table_len=len(table)).ljust(size, b'\x00') if pa == ep_pa else table)
+
+        self.assertTrue(hal.find_smbios_table())
+        cs.hals.memory.readable_chunks.assert_called_once_with(smbios.SCAN_LOW_LIMIT, smbios.BOUNDARY_1MB, smbios.SCAN_SIZE)
+        self.assertEqual(hal.smbios_2_pa, ep_pa)
+        self.assertNotIn(smbios.SCAN_LOW_LIMIT, [c.args[0] for c in cs.hals.memory.read_physical_mem.call_args_list])
+
+    def test_legacy_scan_reads_nothing_when_the_memory_map_excludes_it(self):
+        hal, cs = self._hal_with_memory({})
+        cs.hals.memory.readable_chunks.return_value = []
+
+        self.assertFalse(hal.find_smbios_table())
+        cs.hals.memory.read_physical_mem.assert_not_called()
 
 
 class TestEntryPointFormats(unittest.TestCase):

@@ -430,10 +430,37 @@ class TestTableDiscovery(unittest.TestCase):
         hal, cs = self._hal_with_memory(
             {smbios.SCAN_LOW_LIMIT: scan_page, TABLE_ADDR: table},
             config_table=(True, 0, config, None))
-        cs.hals.cpu.get_SMRAM.return_value = (smbios.SCAN_LOW_LIMIT + smbios.SCAN_SIZE, 0, 0)
 
         self.assertTrue(hal.find_smbios_table())
         self.assertTrue(hal.smbios_2_guid_found)
+        self.assertEqual(hal.smbios_2_pa, smbios.SCAN_LOW_LIMIT)
+
+    def test_config_table_entry_points_are_used_without_scanning(self):
+        ep2_addr, ep3_addr = 0x7A500000, 0x7A510000
+        config = MagicMock()
+        config.VendorTables = {smbios.SMBIOS_2_x_GUID: ep2_addr, smbios.SMBIOS_3_x_GUID: ep3_addr}
+        table = bios_info()
+        hal, cs = self._hal_with_memory(
+            {ep2_addr: entry_point_2x(table_len=len(table)),
+             ep3_addr: entry_point_3x(max_size=len(table)),
+             TABLE_ADDR: table},
+            config_table=(True, 0, config, None))
+
+        self.assertTrue(hal.find_smbios_table())
+        self.assertEqual(hal.smbios_2_pa, ep2_addr)
+        self.assertEqual(hal.smbios_3_pa, ep3_addr)
+        scanned = [c.args[0] for c in cs.hals.memory.read_physical_mem.call_args_list if c.args[1] == smbios.SCAN_SIZE]
+        self.assertEqual(scanned, [])
+        cs.hals.cpu.get_SMRAM.assert_not_called()
+
+    def test_invalid_config_table_entry_point_falls_back_to_legacy_region_only(self):
+        config = MagicMock()
+        config.VendorTables = {smbios.SMBIOS_3_x_GUID: 0x66BE0000}
+        hal, cs = self._hal_with_memory({}, config_table=(True, 0, config, None))
+
+        self.assertFalse(hal.find_smbios_table())
+        scanned = [c.args[0] for c in cs.hals.memory.read_physical_mem.call_args_list if c.args[1] == smbios.SCAN_SIZE]
+        self.assertTrue(all(smbios.SCAN_LOW_LIMIT <= pa < smbios.BOUNDARY_1MB for pa in scanned))
 
 
 class TestEntryPointFormats(unittest.TestCase):
